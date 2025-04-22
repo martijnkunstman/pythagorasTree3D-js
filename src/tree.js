@@ -1,44 +1,65 @@
 import * as THREE from 'three';
 
-export function addPythagorasTree(size = 2, depth = 4, branchScaleY = 0.7, branchRadius = 0.2) {
+export function addPythagorasTree(
+  size = 2,
+  depth = 4,
+  branchScaleY = 0.7,
+  initialRadius = 0.2,
+  taperFactor = 0.7
+) {
   const material = new THREE.MeshStandardMaterial({ color: 0x00ffcc });
-
   const root = new THREE.Group();
 
-  // Base geometry for a unit-height cylinder
-  const baseGeometry = new THREE.CylinderGeometry(branchRadius, branchRadius, 1, 8);
+  const worldMatrix = new THREE.Matrix4();
 
-  function addBranch(parent, size, depth, direction = new THREE.Vector3(0, 1, 0), scaleFactor = 1) {
+  function addBranch(
+    parent,
+    size,
+    depth,
+    direction = new THREE.Vector3(0, 1, 0),
+    scale = 1,
+    radius = initialRadius
+  ) {
     if (depth === 0) return;
 
-    const length = size * branchScaleY * scaleFactor;
+    const length = size * branchScaleY * scale;
 
-    // Create a group to handle rotation + position
-    const branch = new THREE.Group();
+    // Create branch geometry and mesh
+    const geometry = new THREE.CylinderGeometry(radius, radius, 1, 8);
+    const cylinder = new THREE.Mesh(geometry, material);
 
-    // Calculate rotation to match direction
+    // Scale and position the cylinder so it starts from the base
+    cylinder.scale.set(1, length / 2, 1);
+    cylinder.position.y = length / 2;
+
+    // Create branch group for rotation and positioning
+    const branchGroup = new THREE.Group();
+    branchGroup.add(cylinder);
+
+    // Align branch group with the direction vector
     const up = new THREE.Vector3(0, 1, 0);
-    const axis = new THREE.Vector3().crossVectors(up, direction).normalize();
-    const angle = Math.acos(up.dot(direction.clone().normalize()));
+    const dir = direction.clone().normalize();
+    const axis = new THREE.Vector3().crossVectors(up, dir).normalize();
+    const angle = Math.acos(up.dot(dir));
 
     if (!isNaN(angle) && axis.lengthSq() > 0) {
-      branch.quaternion.setFromAxisAngle(axis, angle);
+      branchGroup.quaternion.setFromAxisAngle(axis, angle);
     }
 
-    // Position this group at the tip of the parent branch
-    branch.position.copy(direction.clone().normalize().multiplyScalar(length));
+    parent.add(branchGroup);
 
-    // Create and position the cylinder inside the group
-    const cylinder = new THREE.Mesh(baseGeometry, material);
-    cylinder.scale.set(1, length / 2, 1); // since height is centered, Y = half
-    cylinder.position.y = length / 2;     // move it so bottom touches origin
-    branch.add(cylinder);
+    // Compute the tip position of this branch in world space
+    branchGroup.updateMatrixWorld(true); // ensure transforms are current
+    const tip = new THREE.Vector3(0, length, 0); // local Y-up tip
+    tip.applyMatrix4(branchGroup.matrixWorld);  // convert to world position
 
-    // Add this branch group to the parent
-    parent.add(branch);
+    // Create a group at the tip of the current branch
+    const nextGroup = new THREE.Group();
+    nextGroup.position.set(0, length, 0); // local Y-up, no world transform
+    branchGroup.add(nextGroup); // Keep it in local space
 
-    // Recurse
-    const newScale = scaleFactor * 0.7;
+    const nextScale = scale * 1;
+    const nextRadius = radius * taperFactor;
 
     const angleStep = (2 * Math.PI) / 3;
     const coneAngle = Math.PI / 4;
@@ -48,14 +69,11 @@ export function addPythagorasTree(size = 2, depth = 4, branchScaleY = 0.7, branc
       const x = Math.cos(theta) * Math.sin(coneAngle);
       const z = Math.sin(theta) * Math.sin(coneAngle);
       const y = Math.cos(coneAngle);
-      const dir = new THREE.Vector3(x, y, z).normalize();
-
-      addBranch(branch, size, depth - 1, dir, newScale);
+      const newDir = new THREE.Vector3(x, y, z);
+      addBranch(nextGroup, size, depth - 1, newDir, nextScale, nextRadius);
     }
   }
 
-  // Start recursion from root, pointing up
-  addBranch(root, size, depth, new THREE.Vector3(0, 1, 0), 1);
-
+  addBranch(root, size, depth);
   return root;
 }
