@@ -1,47 +1,81 @@
-import { scene, camera, renderer } from './scene.js';
-import { createControls } from './controls.js';
-import { addPythagorasTree } from './tree.js';
+// main.js
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
 
-const size = 2; // base size of the tree
-const depth = 4; // recursion depth
-const branchScaleY = 0.7; // scale factor for branch height
-const branchRadius = 0.2; // radius of the branches
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 10, 30);
 
-// Set up scene
-// const root = addPythagorasTree(
-//   size,        // base size
-//   depth,        // recursion depth
-//   branchScaleY,      // branch length factor (taller branches)
-//   branchRadius       // branch radius (thinner cylinders)
-// );
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-const root = addPythagorasTree(2, 5, 1.0, 0.1);
+const controls = new OrbitControls(camera, renderer.domElement);
 
-scene.add(root);
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(10, 20, 10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040));
 
-// Calculate approximate height of tree
-const totalHeight = size * branchScaleY * Math.pow(0.7, 0) * depth;
+// Utility to create a cylinder between two points
+function createBranch(start, end, startRadius = 0.1, endRadius = 0.05, color = 0x00ff00) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  const cylinder = new THREE.CylinderGeometry(endRadius, startRadius, length, 32);
 
-// Center the tree
-root.position.y = 0;
+  const material = new THREE.MeshStandardMaterial({ color });
+  const mesh = new THREE.Mesh(cylinder, material);
 
-// Set camera far enough to see the whole tree
-camera.position.set(0, totalHeight * 0.5, totalHeight * 2);
-camera.lookAt(0, totalHeight * 0.5, 0);
+  const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  mesh.position.copy(midpoint);
 
-// Orbit controls
-const controls = createControls(camera, renderer.domElement);
-controls.target.set(0, totalHeight * 0.5, 0); // center orbit around tree
-controls.update();
+  mesh.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    direction.clone().normalize()
+  );
 
-// Animate
+  return mesh;
+}
+
+function generateTree(origin, direction, depth, angle, scale, thickness) {
+  if (depth <= 0) return;
+
+  const length = scale;
+  const end = origin.clone().add(direction.clone().normalize().multiplyScalar(length));
+
+  const branch = createBranch(origin, end, thickness, thickness * 0.7);
+  scene.add(branch);
+
+  const basis = direction.clone().normalize();
+
+  // Use fixed equally spaced directions in spherical coordinates
+  const childDirections = [
+    new THREE.Vector3(1, 1, 0),
+    new THREE.Vector3(-0.5, 1, Math.sqrt(3) / 2),
+    new THREE.Vector3(-0.5, 1, -Math.sqrt(3) / 2)
+  ];
+
+  childDirections.forEach(dir => {
+    dir.normalize();
+    const rotatedDir = dir.clone().applyQuaternion(
+      new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), basis)
+    );
+    generateTree(end, rotatedDir, depth - 1, angle, scale * 0.7, thickness * 0.7);
+  });
+}
+
+// Start Tree
+const start = new THREE.Vector3(0, -10, 0);
+const direction = new THREE.Vector3(0, 1, 0);
+generateTree(start, direction, 9, Math.PI / 6, 8, 2);
+
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
 }
-
 animate();
 
 window.addEventListener('resize', () => {
