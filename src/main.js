@@ -20,7 +20,7 @@ scene.add(light);
 scene.add(new THREE.AmbientLight(0x404040));
 
 // Utility to create a cylinder between two points
-function createBranch(start, end, startRadius = 0.1, endRadius = 0.05, color = 0x00ff00) {
+function createBranch(start, end, startRadius = 0.1, endRadius = 0.08, color = 0x00ff00) {
   const direction = new THREE.Vector3().subVectors(end, start);
   const length = direction.length();
   const cylinder = new THREE.CylinderGeometry(endRadius, startRadius, length, 32);
@@ -69,7 +69,7 @@ function generateTree(origin, direction, depth, angle, scale, thickness) {
 // Start Tree
 const start = new THREE.Vector3(0, -10, 0);
 const direction = new THREE.Vector3(0, 1, 0);
-generateTree(start, direction, 9, Math.PI / 6, 8, 2);
+generateTree(start, direction, 8, Math.PI / 6, 10, 4);
 
 function animate() {
   requestAnimationFrame(animate);
