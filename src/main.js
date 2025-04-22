@@ -10,7 +10,7 @@ const depth = 5;                // recursion depth
 const branchScaleY = 0.8;       // how long each branch is vertically
 
 //const root = addPythagorasTree(size, depth, branchScaleY);
-const root = addPythagorasTree(10, 2, 6); // tall narrow branches
+const root = addPythagorasTree(10, 5, 6); // tall narrow branches
 
 scene.add(root);
 
