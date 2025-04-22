@@ -1,56 +1,61 @@
 import * as THREE from 'three';
 
-export function addPythagorasTree(size = 2, depth = 4, branchScaleY = 0.7) {
-  const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+export function addPythagorasTree(size = 2, depth = 4, branchScaleY = 0.7, branchRadius = 0.2) {
   const material = new THREE.MeshStandardMaterial({ color: 0x00ffcc });
 
   const root = new THREE.Group();
 
-  function addBranch(parent, size, depth) {
+  // Base geometry for a unit-height cylinder
+  const baseGeometry = new THREE.CylinderGeometry(branchRadius, branchRadius, 1, 8);
+
+  function addBranch(parent, size, depth, direction = new THREE.Vector3(0, 1, 0), scaleFactor = 1) {
     if (depth === 0) return;
 
-    const cube = new THREE.Mesh(cubeGeometry, material);
-    cube.scale.set(size, size * branchScaleY, size);
-    cube.position.y = (size * branchScaleY) / 2;
-    parent.add(cube);
+    const length = size * branchScaleY * scaleFactor;
 
-    const group = new THREE.Group();
-    group.position.y = size * branchScaleY;
-    parent.add(group);
+    // Create a group to handle rotation + position
+    const branch = new THREE.Group();
 
-    const scale = 0.7;
+    // Calculate rotation to match direction
+    const up = new THREE.Vector3(0, 1, 0);
+    const axis = new THREE.Vector3().crossVectors(up, direction).normalize();
+    const angle = Math.acos(up.dot(direction.clone().normalize()));
 
-    // Generate 3 evenly spaced directions in 3D (like points on a cone)
-    const directions = [];
-    const angleStep = (2 * Math.PI) / 3; // 120 degrees between each
-    const coneAngle = Math.PI / 4; // angle from vertical (Y axis)
-
-    for (let i = 0; i < 3; i++) {
-      const angle = i * angleStep;
-      const x = Math.cos(angle) * Math.sin(coneAngle);
-      const z = Math.sin(angle) * Math.sin(coneAngle);
-      const y = Math.cos(coneAngle);
-      directions.push(new THREE.Vector3(x, y, z));
+    if (!isNaN(angle) && axis.lengthSq() > 0) {
+      branch.quaternion.setFromAxisAngle(axis, angle);
     }
 
-    for (let dir of directions) {
-      const branch = new THREE.Group();
+    // Position this group at the tip of the parent branch
+    branch.position.copy(direction.clone().normalize().multiplyScalar(length));
 
-      const normalizedDir = dir.clone().normalize();
-      const axis = new THREE.Vector3(0, 1, 0).cross(normalizedDir).normalize();
-      const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(normalizedDir));
+    // Create and position the cylinder inside the group
+    const cylinder = new THREE.Mesh(baseGeometry, material);
+    cylinder.scale.set(1, length / 2, 1); // since height is centered, Y = half
+    cylinder.position.y = length / 2;     // move it so bottom touches origin
+    branch.add(cylinder);
 
-      if (!isNaN(angle)) {
-        branch.quaternion.setFromAxisAngle(axis, angle);
-      }
+    // Add this branch group to the parent
+    parent.add(branch);
 
-      branch.scale.set(scale, scale, scale);
-      group.add(branch);
+    // Recurse
+    const newScale = scaleFactor * 0.7;
 
-      addBranch(branch, size, depth - 1); // recurse
+    const angleStep = (2 * Math.PI) / 3;
+    const coneAngle = Math.PI / 4;
+
+    for (let i = 0; i < 3; i++) {
+      const theta = i * angleStep;
+      const x = Math.cos(theta) * Math.sin(coneAngle);
+      const z = Math.sin(theta) * Math.sin(coneAngle);
+      const y = Math.cos(coneAngle);
+      const dir = new THREE.Vector3(x, y, z).normalize();
+
+      addBranch(branch, size, depth - 1, dir, newScale);
     }
   }
 
-  addBranch(root, size, depth);
+  // Start recursion from root, pointing up
+  addBranch(root, size, depth, new THREE.Vector3(0, 1, 0), 1);
+
   return root;
 }
